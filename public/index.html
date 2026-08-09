@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f7f4ed" />
+  <meta name="description" content="TripStory AI - Biến chuyến đi Việt Nam thành một hành trình có câu chuyện." />
+  <title>TripStory AI</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧭</text></svg>">
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="#" aria-label="TripStory AI home">
+        <span class="brand-mark">TS</span>
+        <span>TripStory <strong>AI</strong></span>
+      </a>
+      <div class="top-actions">
+        <span id="apiStatus" class="status-pill">Đang kiểm tra AI…</span>
+        <button id="savedBtn" class="icon-btn" type="button" title="Chuyến đi đã lưu">♡</button>
+      </div>
+    </header>
+
+    <main>
+      <section id="builderView" class="builder-view">
+        <div class="hero-copy">
+          <span class="eyebrow">VIETNAM CULTURAL TRIP PLANNER</span>
+          <h1>Đừng chỉ đi.<br><em>Hãy hiểu câu chuyện.</em></h1>
+          <p>TripStory tạo hành trình Việt Nam theo sở thích, ngân sách và nhịp đi của bạn — kèm câu chuyện văn hoá, món địa phương và mini challenge ở từng điểm dừng.</p>
+        </div>
+
+        <form id="tripForm" class="planner-card">
+          <div class="form-row wide">
+            <label for="destination">Bạn muốn đi đâu?</label>
+            <div class="input-with-icon">
+              <span>⌖</span>
+              <input id="destination" name="destination" value="Huế" placeholder="Huế, Hội An, Đà Nẵng…" autocomplete="off" required />
+            </div>
+          </div>
+
+          <div class="form-grid-2">
+            <div class="form-row">
+              <label for="days">Số ngày</label>
+              <select id="days" name="days">
+                <option value="1">1 ngày</option>
+                <option value="2" selected>2 ngày</option>
+                <option value="3">3 ngày</option>
+                <option value="4">4 ngày</option>
+                <option value="5">5 ngày</option>
+              </select>
+            </div>
+            <div class="form-row">
+              <label for="budget">Ngân sách</label>
+              <div class="currency-input">
+                <input id="budget" name="budget" type="number" value="1500000" min="100000" step="100000" inputmode="numeric" />
+                <span>VND</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label>Đi cùng</label>
+            <div class="segmented" data-name="companions">
+              <button type="button" class="active" data-value="solo">Một mình</button>
+              <button type="button" data-value="couple">Cặp đôi</button>
+              <button type="button" data-value="friends">Bạn bè</button>
+              <button type="button" data-value="family">Gia đình</button>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label>Nhịp chuyến đi</label>
+            <div class="segmented" data-name="pace">
+              <button type="button" data-value="slow">Chậm rãi</button>
+              <button type="button" class="active" data-value="balanced">Cân bằng</button>
+              <button type="button" data-value="packed">Khám phá nhiều</button>
+            </div>
+          </div>
+
+          <div class="form-row">
+            <label>Bạn thích gì?</label>
+            <div id="interestChips" class="chips">
+              <button type="button" class="selected" data-value="culture">🏛 Văn hoá</button>
+              <button type="button" class="selected" data-value="food">🍜 Ẩm thực</button>
+              <button type="button" data-value="history">📜 Lịch sử</button>
+              <button type="button" data-value="nature">🌿 Thiên nhiên</button>
+              <button type="button" data-value="coffee">☕ Cà phê</button>
+              <button type="button" data-value="local-life">🧺 Đời sống địa phương</button>
+              <button type="button" data-value="architecture">🏮 Kiến trúc</button>
+            </div>
+          </div>
+
+          <details class="advanced">
+            <summary>Thêm yêu cầu riêng</summary>
+            <textarea id="notes" rows="3" placeholder="Ví dụ: không ăn cay, ưu tiên đi bộ ít, muốn có thời gian nghỉ trưa…"></textarea>
+          </details>
+
+          <button id="generateBtn" class="primary-btn" type="submit">
+            <span>Tạo hành trình của tôi</span>
+            <span aria-hidden="true">→</span>
+          </button>
+          <button id="demoBtn" class="secondary-btn" type="button">Xem bản demo không cần API key</button>
+          <p class="microcopy">AI có thể sai. Hãy kiểm tra giờ mở cửa, giá vé và thông tin vận hành trước khi đi.</p>
+        </form>
+
+        <div class="promise-strip">
+          <div><strong>Không cần Maps API</strong><span>MVP 0đ</span></div>
+          <div><strong>Story-first</strong><span>Không phải chatbot du lịch</span></div>
+          <div><strong>Gemini-powered</strong><span>Structured itinerary</span></div>
+        </div>
+      </section>
+
+      <section id="resultView" class="result-view hidden" aria-live="polite">
+        <div class="result-header">
+          <button id="backBtn" class="text-btn" type="button">← Tạo chuyến khác</button>
+          <div class="result-actions">
+            <button id="shareBtn" class="ghost-btn" type="button">Chia sẻ</button>
+            <button id="saveBtn" class="ghost-btn" type="button">♡ Lưu</button>
+          </div>
+        </div>
+
+        <article id="tripHero" class="trip-hero"></article>
+
+        <div class="refine-bar">
+          <span>Tinh chỉnh:</span>
+          <button type="button" data-refine="cheaper">💸 Rẻ hơn</button>
+          <button type="button" data-refine="local">🧺 Local hơn</button>
+          <button type="button" data-refine="walking">🚶 Ít đi bộ</button>
+          <button type="button" data-refine="culture">🏛 Nhiều văn hoá</button>
+          <button type="button" data-refine="relaxed">🌿 Thư thả hơn</button>
+        </div>
+
+        <div id="daysContainer" class="days-container"></div>
+        <aside id="tipsCard" class="tips-card"></aside>
+        <div class="bottom-actions">
+          <button id="copyBtn" class="secondary-btn" type="button">Sao chép hành trình</button>
+          <button id="downloadBtn" class="secondary-btn" type="button">Tải JSON</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div id="toast" class="toast" role="status"></div>
+  <div id="loading" class="loading-overlay hidden" aria-hidden="true">
+    <div class="loading-card">
+      <div class="spinner"></div>
+      <strong id="loadingTitle">Đang viết câu chuyện chuyến đi…</strong>
+      <span id="loadingText">Gemini đang cân bằng trải nghiệm, ngân sách và nhịp đi.</span>
+    </div>
+  </div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>
