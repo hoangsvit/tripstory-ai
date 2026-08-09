@@ -10,10 +10,12 @@
 - Gemini-generated **structured itinerary JSON**.
 - Story layer for each stop: cultural context, local tip, food idea, and mini challenge.
 - One-click refinements: cheaper, more local, less walking, more culture, more relaxed.
-- Local device saving with `localStorage` — no database required.
+- Save up to **20 trips** in `localStorage` — no database required.
 - Share/copy/download JSON.
 - Demo Mode works even when no Gemini API key is configured.
 - Gemini API key stays server-side.
+- Per-IP AI rate limiting, security headers, request-size limits, timeout and retry/backoff.
+- Refine actions use Gemini `previous_interaction_id` when available to avoid resending the full itinerary.
 - No Google Maps API in the MVP.
 
 ## Stack
@@ -39,6 +41,15 @@ export GEMINI_MODEL="gemini-3.5-flash-lite"
 npm start
 ```
 
+Optional runtime tuning:
+
+```bash
+export RATE_LIMIT_MAX=10
+export RATE_LIMIT_WINDOW_MS=300000
+export GEMINI_TIMEOUT_MS=30000
+export GEMINI_MAX_ATTEMPTS=3
+```
+
 Open `http://localhost:8080`.
 
 If `GEMINI_API_KEY` is not set, use **Xem bản demo không cần API key**.
@@ -50,7 +61,7 @@ gcloud run deploy tripstory-ai \
   --source . \
   --region asia-southeast1 \
   --allow-unauthenticated \
-  --set-env-vars GEMINI_API_KEY="YOUR_KEY",GEMINI_MODEL="gemini-3.5-flash-lite"
+  --set-env-vars GEMINI_API_KEY="YOUR_KEY",GEMINI_MODEL="gemini-3.5-flash-lite",RATE_LIMIT_MAX="10"
 ```
 
 For a real public app, prefer Secret Manager instead of putting a production API key directly in command history.
@@ -61,7 +72,7 @@ AI Riser requires an AI Studio share/deployed link, so use `AI_STUDIO_PROMPT.md`
 
 ## Accuracy note
 
-The Free Tier version intentionally does **not** enable Google Search or Maps grounding. The system prompt therefore tells Gemini not to invent exact operating hours, ticket prices, closures, addresses, or temporary information. Every itinerary includes fields describing what the traveler should verify before going.
+The MVP intentionally does **not** enable Google Search or Maps grounding by default. The system prompt therefore tells Gemini not to invent exact operating hours, ticket prices, closures, addresses, or temporary information. Every itinerary includes fields describing what the traveler should verify before going.
 
 ## Suggested 60-second demo
 
@@ -80,3 +91,16 @@ Problem: Travel planners often optimize places and schedules but do not help tra
 Solution: TripStory AI combines personal constraints with a story-first itinerary that makes every stop meaningful.
 
 Track: **Culture, Tourism & Sports**.
+
+## Production-minded safeguards
+
+The MVP stays dependency-free, but the server includes lightweight safeguards suitable for a public competition demo:
+
+- AI endpoints are rate-limited per client IP.
+- Gemini calls time out and retry transient `429`/`5xx` failures with backoff.
+- Requests are capped at 100 KB and JSON content type is required.
+- CSP, referrer, frame, content-type and permissions headers are sent on app responses.
+- Gemini Interactions REST responses are parsed from `steps[].content[]`.
+- Refinements chain from the previous Gemini interaction when possible; if a stored interaction has expired, the server falls back to a stateless refine.
+
+For high-traffic production use, replace the in-memory rate limiter with a shared store such as Redis/Memorystore because Cloud Run can run multiple instances.
