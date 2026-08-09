@@ -10,7 +10,12 @@ const publicDir = path.join(__dirname, 'public');
 const PORT = Number(process.env.PORT || 8080);
 const MODEL = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
 const API_KEY = process.env.GEMINI_API_KEY || '';
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
+const GEMINI_URL = process.env.GEMINI_URL || 'https://generativelanguage.googleapis.com/v1beta/interactions';
+
+const GEMINI_TIMEOUT_MS = Math.max(5_000, Number(process.env.GEMINI_TIMEOUT_MS || 30_000));
+const GEMINI_MAX_ATTEMPTS = Math.min(4, Math.max(1, Number(process.env.GEMINI_MAX_ATTEMPTS || 3)));
+const RATE_LIMIT_WINDOW_MS = Math.max(10_000, Number(process.env.RATE_LIMIT_WINDOW_MS || 5 * 60_000));
+const RATE_LIMIT_MAX = Math.max(1, Number(process.env.RATE_LIMIT_MAX || 10));
 
 const itinerarySchema = {
   type: 'object',
@@ -68,26 +73,37 @@ Rules:
 - Each day should have a coherent theme and normally 3-5 stops, fewer for slower travel styles.
 - Do not include Markdown in JSON fields.
 - Return only valid JSON matching the provided schema.
-`;
+`.trim();
 
 function cleanPreferences(input = {}) {
   const destination = String(input.destination || '').trim().slice(0, 120);
   const days = Math.min(7, Math.max(1, Number(input.days) || 1));
   const budget = Math.min(100_000_000, Math.max(100_000, Number(input.budget) || 1_000_000));
   const pace = ['slow', 'balanced', 'packed'].includes(input.pace) ? input.pace : 'balanced';
-  const interests = Array.isArray(input.interests) ? input.interests.map(v => String(v).trim()).filter(Boolean).slice(0, 8) : [];
+  const interests = Array.isArray(input.interests)
+    ? input.interests.map(v => String(v).trim()).filter(Boolean).slice(0, 8)
+    : [];
   const companions = String(input.companions || 'solo').slice(0, 40);
   const notes = String(input.notes || '').trim().slice(0, 500);
   const language = input.language === 'en' ? 'English' : 'Vietnamese';
-  if (!destination) throw new Error('Vui lòng nhập điểm đến.');
+  if (!destination) throw httpError(400, 'Vui lòng nhập điểm đến.');
   return { destination, days, budget, pace, interests, companions, notes, language };
 }
 
 function buildGeneratePrompt(prefs) {
-  return `${SYSTEM_RULES}\n\nCreate a ${prefs.days}-day itinerary with these preferences:\nDestination: ${prefs.destination}\nTotal budget: ${prefs.budget} VND\nPace: ${prefs.pace}\nInterests: ${prefs.interests.join(', ') || 'local culture, food, relaxed exploration'}\nTravel party: ${prefs.companions}\nExtra notes: ${prefs.notes || 'none'}\nOutput language: ${prefs.language}\n\nThe itinerary must feel like a story-driven local journey. Keep the estimated total within the stated budget whenever feasible.`;
+  return `Create a ${prefs.days}-day itinerary with these preferences:
+Destination: ${prefs.destination}
+Total budget: ${prefs.budget} VND
+Pace: ${prefs.pace}
+Interests: ${prefs.interests.join(', ') || 'local culture, food, relaxed exploration'}
+Travel party: ${prefs.companions}
+Extra notes: ${prefs.notes || 'none'}
+Output language: ${prefs.language}
+
+The itinerary must feel like a story-driven local journey. Keep the estimated total within the stated budget whenever feasible.`;
 }
 
-function buildRefinePrompt(prefs, itinerary, action) {
+function refineInstruction(action) {
   const actionMap = {
     cheaper: 'Reduce the estimated total cost while preserving the best cultural value. Prefer low-cost or free experiences.',
     local: 'Make the itinerary feel more local and less generic. Prefer markets, neighborhoods, local food, crafts, community spaces, and cultural context while remaining visitor-friendly.',
@@ -95,104 +111,340 @@ function buildRefinePrompt(prefs, itinerary, action) {
     culture: 'Increase cultural and historical storytelling. Keep facts conservative and concise.',
     relaxed: 'Make the trip more relaxed with fewer stops, more buffer time, and calmer experiences.'
   };
-  const instruction = actionMap[action] || String(action || 'Improve the itinerary while keeping the same preferences.').slice(0, 300);
-  return `${SYSTEM_RULES}\n\nRefine the existing itinerary.\nOriginal preferences: ${JSON.stringify(prefs)}\nRefinement instruction: ${instruction}\nExisting itinerary: ${JSON.stringify(itinerary)}\n\nReturn the full revised itinerary, not a patch.`;
+  return actionMap[action] || String(action || 'Improve the itinerary while keeping the same preferences.').slice(0, 300);
 }
 
-async function callGemini(prompt) {
-  if (!API_KEY) {
-    const err = new Error('Gemini API key chưa được cấu hình.');
-    err.code = 'NO_API_KEY';
-    throw err;
-  }
-  const response = await fetch(GEMINI_URL, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'x-goog-api-key': API_KEY },
-    body: JSON.stringify({
-      model: MODEL,
-      input: prompt,
-      response_format: { type: 'text', mime_type: 'application/json', schema: itinerarySchema }
-    })
-  });
-  const text = await response.text();
-  if (!response.ok) {
-    console.error('Gemini API error:', response.status, text.slice(0, 1000));
-    const err = new Error('Gemini API đang bận hoặc cấu hình chưa đúng.');
-    err.code = 'GEMINI_ERROR';
-    throw err;
-  }
-  let payload;
-  try { payload = JSON.parse(text); } catch { throw new Error('Không đọc được phản hồi từ Gemini API.'); }
-  if (!payload.output_text) throw new Error('Gemini không trả về hành trình hợp lệ.');
-  try { return JSON.parse(payload.output_text); } catch { throw new Error('Gemini trả về dữ liệu không đúng định dạng.'); }
+function buildContinuationPrompt(action) {
+  return `Refine the itinerary from the previous interaction.
+Refinement instruction: ${refineInstruction(action)}
+Keep the original destination, trip length, traveler preferences, and requested budget unless the instruction explicitly requires a change.
+Return the full revised itinerary, not a patch.`;
 }
 
-function sendJson(res, status, body) {
+function buildStatelessRefinePrompt(prefs, itinerary, action) {
+  return `Refine this existing itinerary.
+Original preferences: ${JSON.stringify(prefs)}
+Refinement instruction: ${refineInstruction(action)}
+Existing itinerary: ${JSON.stringify(itinerary)}
+Return the full revised itinerary, not a patch.`;
+}
+
+function httpError(status, message, code = 'REQUEST_ERROR') {
+  const err = new Error(message);
+  err.status = status;
+  err.code = code;
+  return err;
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+function extractOutputText(payload) {
+  if (typeof payload?.output_text === 'string' && payload.output_text) return payload.output_text;
+  const steps = Array.isArray(payload?.steps) ? payload.steps : [];
+  const modelSteps = steps.filter(step => step?.type === 'model_output');
+  const textParts = modelSteps.flatMap(step =>
+    Array.isArray(step.content)
+      ? step.content.filter(part => part?.type === 'text' && typeof part.text === 'string').map(part => part.text)
+      : []
+  );
+  return textParts.join('');
+}
+
+function retryDelayMs(attempt, retryAfter) {
+  const seconds = Number(retryAfter);
+  if (Number.isFinite(seconds) && seconds > 0) return Math.min(seconds * 1000, 5_000);
+  return Math.min(500 * (2 ** attempt), 4_000) + Math.floor(Math.random() * 200);
+}
+
+async function callGemini(prompt, { previousInteractionId = null } = {}) {
+  if (!API_KEY) throw httpError(503, 'Gemini API key chưa được cấu hình.', 'NO_API_KEY');
+
+  const requestBody = {
+    model: MODEL,
+    input: prompt,
+    system_instruction: SYSTEM_RULES,
+    response_format: { type: 'text', mime_type: 'application/json', schema: itinerarySchema }
+  };
+  if (previousInteractionId) requestBody.previous_interaction_id = previousInteractionId;
+
+  let lastError;
+  for (let attempt = 0; attempt < GEMINI_MAX_ATTEMPTS; attempt += 1) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), GEMINI_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(GEMINI_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': API_KEY
+        },
+        body: JSON.stringify(requestBody),
+        signal: controller.signal
+      });
+
+      const text = await response.text();
+      if (!response.ok) {
+        const retryable = response.status === 429 || response.status >= 500;
+        console.error('Gemini API error:', response.status, text.slice(0, 1000));
+        if (retryable && attempt + 1 < GEMINI_MAX_ATTEMPTS) {
+          await sleep(retryDelayMs(attempt, response.headers.get('retry-after')));
+          continue;
+        }
+        const err = httpError(
+          response.status === 429 ? 429 : 502,
+          response.status === 429 ? 'Gemini đang giới hạn lượt gọi. Vui lòng thử lại sau.' : 'Gemini API đang bận hoặc cấu hình chưa đúng.',
+          'GEMINI_ERROR'
+        );
+        err.upstreamStatus = response.status;
+        throw err;
+      }
+
+      let payload;
+      try {
+        payload = JSON.parse(text);
+      } catch {
+        throw httpError(502, 'Không đọc được phản hồi từ Gemini API.', 'GEMINI_BAD_RESPONSE');
+      }
+
+      const outputText = extractOutputText(payload);
+      if (!outputText) throw httpError(502, 'Gemini không trả về hành trình hợp lệ.', 'GEMINI_EMPTY_RESPONSE');
+
+      let itinerary;
+      try {
+        itinerary = JSON.parse(outputText);
+      } catch {
+        throw httpError(502, 'Gemini trả về dữ liệu không đúng định dạng.', 'GEMINI_BAD_JSON');
+      }
+
+      return {
+        itinerary,
+        interactionId: typeof payload.id === 'string' ? payload.id : null,
+        usage: payload.usage || null
+      };
+    } catch (error) {
+      if (error?.name === 'AbortError') {
+        lastError = httpError(504, 'Gemini phản hồi quá lâu. Vui lòng thử lại.', 'GEMINI_TIMEOUT');
+        if (attempt + 1 < GEMINI_MAX_ATTEMPTS) {
+          await sleep(retryDelayMs(attempt));
+          continue;
+        }
+        throw lastError;
+      }
+      lastError = error;
+      throw error;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  throw lastError || httpError(502, 'Không thể gọi Gemini API.', 'GEMINI_ERROR');
+}
+
+const rateBuckets = new Map();
+
+function clientIp(req) {
+  const forwarded = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+  return forwarded || req.socket.remoteAddress || 'unknown';
+}
+
+function checkRateLimit(req) {
+  const now = Date.now();
+  const key = clientIp(req);
+  const current = rateBuckets.get(key);
+
+  if (!current || now >= current.resetAt) {
+    const bucket = { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS };
+    rateBuckets.set(key, bucket);
+    return { remaining: Math.max(0, RATE_LIMIT_MAX - 1), resetAt: bucket.resetAt };
+  }
+
+  current.count += 1;
+  if (current.count > RATE_LIMIT_MAX) {
+    const retryAfterSeconds = Math.max(1, Math.ceil((current.resetAt - now) / 1000));
+    const err = httpError(429, `Bạn đã dùng quá nhiều lượt AI. Thử lại sau khoảng ${retryAfterSeconds} giây.`, 'RATE_LIMITED');
+    err.retryAfter = retryAfterSeconds;
+    throw err;
+  }
+
+  return { remaining: Math.max(0, RATE_LIMIT_MAX - current.count), resetAt: current.resetAt };
+}
+
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets.entries()) {
+    if (now >= bucket.resetAt) rateBuckets.delete(key);
+  }
+}, Math.min(RATE_LIMIT_WINDOW_MS, 60_000)).unref();
+
+const securityHeaders = {
+  'Content-Security-Policy': "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'DENY',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Permissions-Policy': 'camera=(), microphone=(), geolocation=()'
+};
+
+function writeHead(res, status, headers = {}) {
+  res.writeHead(status, { ...securityHeaders, ...headers });
+}
+
+function sendJson(res, status, body, extraHeaders = {}) {
   const data = JSON.stringify(body);
-  res.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(data), 'Cache-Control': 'no-store' });
+  writeHead(res, status, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Content-Length': Buffer.byteLength(data),
+    'Cache-Control': 'no-store',
+    ...extraHeaders
+  });
   res.end(data);
 }
 
 async function readJson(req) {
+  const contentType = String(req.headers['content-type'] || '').toLowerCase();
+  if (!contentType.includes('application/json')) throw httpError(415, 'Content-Type phải là application/json.');
+
   let body = '';
   for await (const chunk of req) {
     body += chunk;
-    if (body.length > 1_000_000) throw new Error('Request quá lớn.');
+    if (Buffer.byteLength(body) > 100_000) throw httpError(413, 'Request quá lớn.');
   }
-  try { return body ? JSON.parse(body) : {}; } catch { throw new Error('JSON không hợp lệ.'); }
+
+  try {
+    return body ? JSON.parse(body) : {};
+  } catch {
+    throw httpError(400, 'JSON không hợp lệ.');
+  }
 }
 
-const mime = { '.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.json':'application/json; charset=utf-8', '.svg':'image/svg+xml' };
+const mime = {
+  '.html':'text/html; charset=utf-8',
+  '.css':'text/css; charset=utf-8',
+  '.js':'text/javascript; charset=utf-8',
+  '.json':'application/json; charset=utf-8',
+  '.svg':'image/svg+xml'
+};
 
 async function serveStatic(req, res, pathname) {
   const requested = pathname === '/' ? '/index.html' : pathname;
   const safePath = path.normalize(requested).replace(/^([.][.][/\\])+/, '');
-  let filePath = path.join(publicDir, safePath);
+  const filePath = path.join(publicDir, safePath);
   if (!filePath.startsWith(publicDir)) return false;
+
   try {
     const stat = await fs.stat(filePath);
     if (!stat.isFile()) return false;
     const data = await fs.readFile(filePath);
-    res.writeHead(200, { 'Content-Type': mime[path.extname(filePath)] || 'application/octet-stream', 'Cache-Control': process.env.NODE_ENV === 'production' ? 'public, max-age=3600' : 'no-cache' });
+    writeHead(res, 200, {
+      'Content-Type': mime[path.extname(filePath)] || 'application/octet-stream',
+      'Content-Length': data.byteLength,
+      'Cache-Control': process.env.NODE_ENV === 'production' ? 'public, max-age=3600' : 'no-cache'
+    });
+    if (req.method === 'HEAD') return res.end();
     res.end(data);
     return true;
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 const server = http.createServer(async (req, res) => {
   const url = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-  const pathname = decodeURIComponent(url.pathname);
+  let pathname;
+  try {
+    pathname = decodeURIComponent(url.pathname);
+  } catch {
+    return sendJson(res, 400, { error: 'URL không hợp lệ.' });
+  }
 
   try {
     if (req.method === 'GET' && pathname === '/api/health') {
-      return sendJson(res, 200, { ok: true, model: MODEL, geminiConfigured: Boolean(API_KEY) });
+      return sendJson(res, 200, {
+        ok: true,
+        model: MODEL,
+        geminiConfigured: Boolean(API_KEY),
+        rateLimit: { max: RATE_LIMIT_MAX, windowMs: RATE_LIMIT_WINDOW_MS }
+      });
     }
 
     if (req.method === 'POST' && pathname === '/api/generate') {
+      const rate = checkRateLimit(req);
       const prefs = cleanPreferences(await readJson(req));
-      const itinerary = await callGemini(buildGeneratePrompt(prefs));
-      return sendJson(res, 200, { itinerary, prefs, model: MODEL });
+      const result = await callGemini(buildGeneratePrompt(prefs));
+      return sendJson(res, 200, {
+        itinerary: result.itinerary,
+        prefs,
+        interactionId: result.interactionId,
+        model: MODEL
+      }, {
+        'X-RateLimit-Remaining': String(rate.remaining)
+      });
     }
 
     if (req.method === 'POST' && pathname === '/api/refine') {
+      const rate = checkRateLimit(req);
       const body = await readJson(req);
       const prefs = cleanPreferences(body?.prefs || {});
-      if (!body?.itinerary || typeof body.itinerary !== 'object') return sendJson(res, 400, { error: 'Thiếu hành trình để tinh chỉnh.' });
-      const itinerary = await callGemini(buildRefinePrompt(prefs, body.itinerary, String(body.action || '').slice(0, 300)));
-      return sendJson(res, 200, { itinerary, prefs, model: MODEL });
+      if (!body?.itinerary || typeof body.itinerary !== 'object') {
+        return sendJson(res, 400, { error: 'Thiếu hành trình để tinh chỉnh.' });
+      }
+
+      const interactionId = typeof body.interactionId === 'string' ? body.interactionId.slice(0, 300) : null;
+      let result;
+
+      if (interactionId) {
+        try {
+          result = await callGemini(buildContinuationPrompt(String(body.action || '')), {
+            previousInteractionId: interactionId
+          });
+        } catch (error) {
+          // Stored interactions can expire (especially on Free Tier). Fall back to a stateless refine.
+          if (error.code !== 'GEMINI_ERROR' || error.upstreamStatus !== 400) throw error;
+          result = await callGemini(buildStatelessRefinePrompt(
+            prefs,
+            body.itinerary,
+            String(body.action || '')
+          ));
+        }
+      } else {
+        result = await callGemini(buildStatelessRefinePrompt(
+          prefs,
+          body.itinerary,
+          String(body.action || '')
+        ));
+      }
+
+      return sendJson(res, 200, {
+        itinerary: result.itinerary,
+        prefs,
+        interactionId: result.interactionId,
+        model: MODEL
+      }, {
+        'X-RateLimit-Remaining': String(rate.remaining)
+      });
     }
 
     if (req.method === 'GET' || req.method === 'HEAD') {
       if (await serveStatic(req, res, pathname)) return;
       const index = await fs.readFile(path.join(publicDir, 'index.html'));
-      res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
+      writeHead(res, 200, {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Content-Length': index.byteLength,
+        'Cache-Control': 'no-cache'
+      });
+      if (req.method === 'HEAD') return res.end();
       return res.end(index);
     }
 
     sendJson(res, 404, { error: 'Not found' });
   } catch (error) {
-    const status = error.code === 'NO_API_KEY' ? 503 : 400;
-    sendJson(res, status, { error: error.message || 'Đã xảy ra lỗi.' });
+    const status = Number(error.status) || 500;
+    const headers = error.retryAfter ? { 'Retry-After': String(error.retryAfter) } : {};
+    if (status >= 500) console.error(error);
+    sendJson(res, status, { error: error.message || 'Đã xảy ra lỗi.', code: error.code || 'INTERNAL_ERROR' }, headers);
   }
 });
 
@@ -200,4 +452,5 @@ server.listen(PORT, '0.0.0.0', () => {
   console.log(`TripStory AI running on http://0.0.0.0:${PORT}`);
   console.log(`Gemini model: ${MODEL}`);
   console.log(`Gemini configured: ${Boolean(API_KEY)}`);
+  console.log(`Rate limit: ${RATE_LIMIT_MAX} AI requests / ${RATE_LIMIT_WINDOW_MS}ms per IP`);
 });
