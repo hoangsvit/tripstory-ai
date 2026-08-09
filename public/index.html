@@ -8,6 +8,7 @@
   <title>TripStory AI</title>
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧭</text></svg>">
   <link rel="stylesheet" href="/styles.css" />
+  <link rel="stylesheet" href="/enhancements.css" />
 </head>
 <body>
   <div class="app-shell">
@@ -141,6 +142,19 @@
     </main>
   </div>
 
+  <dialog id="savedDialog" class="saved-dialog">
+    <div class="saved-dialog-head">
+      <div>
+        <span class="eyebrow">ĐÃ LƯU TRÊN THIẾT BỊ</span>
+        <h2>Chuyến đi của bạn</h2>
+      </div>
+      <button id="savedDialogClose" class="icon-btn" type="button" aria-label="Đóng">×</button>
+    </div>
+    <p id="savedEmpty" class="saved-empty hidden">Chưa có chuyến đi nào được lưu.</p>
+    <div id="savedTripsList" class="saved-trips-list"></div>
+    <p class="microcopy">TripStory chỉ lưu dữ liệu trong trình duyệt hiện tại. Tối đa 20 chuyến.</p>
+  </dialog>
+
   <div id="toast" class="toast" role="status"></div>
   <div id="loading" class="loading-overlay hidden" aria-hidden="true">
     <div class="loading-card">
@@ -150,6 +164,6 @@
     </div>
   </div>
 
-  <script src="/app.js" defer></script>
+  <script src="/app-v2.js" defer></script>
 </body>
 </html>
