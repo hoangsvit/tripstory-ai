@@ -1,0 +1,119 @@
+{
+  "prefs": {
+    "destination": "Huế",
+    "days": 2,
+    "budget": 1500000,
+    "pace": "balanced",
+    "interests": [
+      "culture",
+      "food",
+      "history"
+    ],
+    "companions": "solo",
+    "notes": "",
+    "language": "vi"
+  },
+  "itinerary": {
+    "title": "Huế chậm rãi, sâu hơn một chút",
+    "destination": "Huế",
+    "tagline": "Hai ngày đi giữa ký ức cố đô, nhịp sống bên sông và những món ăn nhỏ mà đậm chất Huế.",
+    "overview": "Hành trình ưu tiên cụm điểm gần nhau, dành đủ thời gian để nghe câu chuyện của từng nơi thay vì chạy theo checklist.",
+    "estimated_total_vnd": 1180000,
+    "budget_note": "Ước tính cho một người, chưa gồm lưu trú và chi phí di chuyển đến Huế. Giá thực tế có thể thay đổi.",
+    "travel_tips": [
+      "Bắt đầu sớm để tránh nắng và có nhiều khoảng nghỉ giữa ngày.",
+      "Mang nước, nón và trang phục lịch sự khi ghé không gian tôn giáo hoặc di tích.",
+      "Giờ mở cửa và giá vé có thể thay đổi; nên kiểm tra nguồn chính thức trước khi đi."
+    ],
+    "days": [
+      {
+        "day": 1,
+        "theme": "Dấu vết kinh thành & nhịp sống bên sông",
+        "story_intro": "Ngày đầu đi từ không gian cung đình ra đời sống thường nhật — hai lớp tính cách tạo nên Huế.",
+        "estimated_day_cost_vnd": 580000,
+        "stops": [
+          {
+            "time": "08:00",
+            "place": "Kinh thành Huế",
+            "area": "Thuận Thành",
+            "activity": "Đi chậm qua các trục chính, chọn vài công trình để đọc kỹ thay vì cố xem hết.",
+            "story": "Kinh thành là điểm mở đầu tốt để hiểu cấu trúc quyền lực, nghi lễ và thẩm mỹ của cố đô.",
+            "local_tip": "Ưu tiên giày dễ đi và dành một khoảng nghỉ trong khuôn viên.",
+            "food": "Sau chuyến tham quan có thể tìm bún bò Huế ở khu vực trung tâm.",
+            "mini_challenge": "Tìm một chi tiết kiến trúc lặp lại nhiều lần và đoán ý nghĩa của nó trước khi tra cứu.",
+            "estimated_cost_vnd": 250000,
+            "verify_before_go": "Kiểm tra giờ mở cửa và giá vé hiện tại từ nguồn chính thức."
+          },
+          {
+            "time": "12:00",
+            "place": "Bữa trưa món Huế",
+            "area": "Trung tâm",
+            "activity": "Chọn một quán địa phương, gọi phần vừa phải và thử thêm một món nhỏ chưa từng ăn.",
+            "story": "Ẩm thực Huế thường gây ấn tượng bởi khẩu phần vừa và sự đa dạng của các món nhỏ.",
+            "local_tip": "Nếu không ăn cay, nói trước với quán khi gọi món.",
+            "food": "Bún bò, bánh bèo, bánh nậm hoặc bánh lọc.",
+            "mini_challenge": "Chọn một món có tên bạn chưa biết và hỏi người bán cách người Huế thường ăn món đó.",
+            "estimated_cost_vnd": 120000,
+            "verify_before_go": "Giá thay đổi theo quán; xem menu trước khi gọi."
+          },
+          {
+            "time": "16:00",
+            "place": "Đi bộ ven sông Hương",
+            "area": "Bờ Nam",
+            "activity": "Đi bộ nhẹ, ngồi nghỉ và quan sát nhịp thành phố lúc chiều xuống.",
+            "story": "Sông Hương không chỉ là cảnh quan; nó là một phần mạnh trong hình dung về nhịp sống và bản sắc Huế.",
+            "local_tip": "Khoảng cuối chiều thường dễ chịu hơn giữa trưa.",
+            "food": "Có thể dừng cà phê hoặc chè Huế nếu còn ngân sách.",
+            "mini_challenge": "Ghi lại ba âm thanh quanh sông và dùng chúng làm “soundtrack” cho ngày đầu.",
+            "estimated_cost_vnd": 80000,
+            "verify_before_go": "Theo dõi thời tiết trong ngày."
+          }
+        ]
+      },
+      {
+        "day": 2,
+        "theme": "Tĩnh hơn, gần đời sống địa phương hơn",
+        "story_intro": "Ngày thứ hai giảm nhịp để nhìn Huế ngoài lớp di sản lớn.",
+        "estimated_day_cost_vnd": 600000,
+        "stops": [
+          {
+            "time": "08:30",
+            "place": "Chùa Thiên Mụ",
+            "area": "Kim Long",
+            "activity": "Tham quan trong im lặng vừa đủ, chú ý cảnh quan nhìn ra sông.",
+            "story": "Thiên Mụ là một biểu tượng quen thuộc của Huế và gắn chặt với cảnh quan sông Hương.",
+            "local_tip": "Ăn mặc lịch sự, nói nhỏ và tôn trọng không gian sinh hoạt tôn giáo.",
+            "food": "Có thể tìm món chay cho bữa trưa.",
+            "mini_challenge": "Đứng yên một phút rồi viết một câu mô tả cảm giác.",
+            "estimated_cost_vnd": 120000,
+            "verify_before_go": "Kiểm tra quy định tham quan tại thời điểm đi."
+          },
+          {
+            "time": "11:30",
+            "place": "Khu Kim Long",
+            "area": "Kim Long",
+            "activity": "Dành thời gian cho một bữa trưa và vài con đường nhỏ thay vì chạy sang điểm nổi tiếng khác.",
+            "story": "Những khu dân cư cũ giúp chuyến đi có thêm lớp đời sống thường nhật.",
+            "local_tip": "Giữ sự riêng tư của người dân; tránh chụp người ở cự ly gần khi chưa xin phép.",
+            "food": "Cơm Huế hoặc món chay địa phương.",
+            "mini_challenge": "Tìm một biển hiệu hoặc cách đặt tên cửa hàng khiến bạn thấy “rất Huế”.",
+            "estimated_cost_vnd": 180000,
+            "verify_before_go": "Chọn quán có thông tin và đánh giá cập nhật."
+          },
+          {
+            "time": "15:30",
+            "place": "Một quán cà phê yên tĩnh",
+            "area": "Trung tâm Huế",
+            "activity": "Kết thúc bằng một giờ nghỉ và viết “3 điều mình hiểu hơn về Huế”.",
+            "story": "Một chuyến đi có câu chuyện cần cả khoảng trống để người đi tự nối các trải nghiệm lại với nhau.",
+            "local_tip": "Chọn quán gần điểm rời thành phố để tránh di chuyển vòng lại.",
+            "food": "Cà phê hoặc đồ uống địa phương.",
+            "mini_challenge": "Viết một postcard 50 từ cho chính bạn của một tháng sau.",
+            "estimated_cost_vnd": 90000,
+            "verify_before_go": "Kiểm tra địa điểm phù hợp với lịch rời Huế của bạn."
+          }
+        ]
+      }
+    ]
+  }
+}

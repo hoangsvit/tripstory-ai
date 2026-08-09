@@ -1,12 +1,13 @@
 {
   "name": "tripstory-ai",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "TripStory AI - Vietnam cultural trip planner powered by Gemini",
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "check": "node --check server.js && node --check public/app-v2.js"
   },
   "engines": {
     "node": ">=20"
